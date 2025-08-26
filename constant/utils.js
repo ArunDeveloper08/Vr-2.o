@@ -1,0 +1,1 @@
+export const apiUrl = "http://www.pesonline.co.in:8080"

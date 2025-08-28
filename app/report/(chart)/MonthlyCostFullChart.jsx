@@ -1,35 +1,76 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
-import { useRouter } from 'expo-router';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-const costGridData = [
-  { value: 60 },
-  { value: 90 },
-  { value: 150 },
-  { value: 200 },
-  { value: 280 },
-];
-
-const costDgData = [
-  { value: 40 },
-  { value: 60 },
-  { value: 100 },
-  { value: 90 },
-  { value: 120 },
-];
-
-const xLabels = ['JAN', 'FEB', 'MAR', 'APR', 'MAY'];
+// --- UI Theme Colors (Matching MonthlyChartScreen for consistency) ---
+const theme = {
+  background: '#0F142D', // Dark navy background
+  card: '#1C203A', // Darker card background
+  textPrimary: '#FFFFFF', // White text
+  textSecondary: '#A9A9B2', // Light grey for subtitles
+  accent: '#00A3FF', // Bright blue for highlights
+  gridColor: '#00A3FF', // Blue for Grid data
+  dgColor: '#FFA500', // Orange for DG data
+  error: '#FF6347', // Red for error messages
+  tableHeaderBg: '#2C3252',
+  tableRowEven: '#1C203A',
+  tableRowOdd: '#141830',
+};
 
 const MonthlyCostFullChart = () => {
   const router = useRouter();
+  const params = useLocalSearchParams();
+
   const [isLoading, setIsLoading] = useState(true);
-  const [highlight, setHighlight] = useState(null); // null, 'GRID', or 'DG' for highlighting
+  const [highlight, setHighlight] = useState(null); // null, 'GRID', or 'DG'
   const [isAreaChart, setIsAreaChart] = useState(true); // Toggle area chart fill
   const [tooltip, setTooltip] = useState({ visible: false, value: 0, x: 0, y: 0, dataset: '' });
+
+  // Extract data from params and parse it
+  const chartTitle = params.title || 'Cost Consumption Chart';
+  const yAxisSuffix = params.yAxisSuffix || '₹';
+  const color1 = params.color1 || theme.gridColor;
+  const color2 = params.color2 || theme.dgColor;
+
+  let rawGridData = [];
+  let rawDgData = [];
+
+  try {
+    rawGridData = params.data1 ? JSON.parse(params.data1) : [];
+    rawDgData = params.data2 ? JSON.parse(params.data2) : [];
+  } catch (e) {
+    console.error('Error parsing chart data from params:', e);
+  }
+
+  // Combine data for the table: [{ label, gridValue, dgValue }]
+  const tableData = rawGridData.map((gridItem, index) => {
+    const dgItem = rawDgData[index];
+    return {
+      label: gridItem.label, // e.g., "Jan '25"
+      gridValue: gridItem.value,
+      dgValue: dgItem ? dgItem.value : 0, // Ensure DG data exists
+    };
+  });
+
+  // Calculate max value for chart based on actual data
+  const chartMaxValue = Math.max(
+    ...rawGridData.map((d) => d.value),
+    ...rawDgData.map((d) => d.value)
+  ) + 100; // Buffer for cost
+  const finalChartMaxValue = isNaN(chartMaxValue) ? 200 : chartMaxValue; // Default if no data
 
   useEffect(() => {
     // Simulate loading for 1 second
@@ -41,12 +82,12 @@ const MonthlyCostFullChart = () => {
     setHighlight(type === highlight ? null : type); // Toggle highlight
   };
 
-  const handleDataPointPress = (data, index, dataset) => {
+  const handleDataPointPress = (data, index, dataset, x, y) => {
     setTooltip({
       visible: true,
       value: data.value,
-      x: index * 40 + 50, // Approximate x position based on spacing
-      y: height - (data.value / 300) * (height - 200) - 100, // Approximate y position
+      x: x,
+      y: y - 30, // Adjust tooltip position
       dataset,
     });
     // Hide tooltip after 2 seconds
@@ -56,7 +97,7 @@ const MonthlyCostFullChart = () => {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#003366" />
+        <ActivityIndicator size="large" color={theme.accent} />
         <Text style={styles.loadingText}>Loading Chart...</Text>
       </View>
     );
@@ -66,39 +107,47 @@ const MonthlyCostFullChart = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.replace('/report/monthly')}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.mainTitle}>REPORT {'>'} MONTHLY {'>'} COST CONSUMPTION</Text>
+        <Text style={styles.mainTitle}>{chartTitle}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.chartContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Chart Section */}
         <View style={styles.chartBox}>
           <LineChart
-            data={costGridData}
-            data2={costDgData}
-            spacing={40}
-            thickness={2}
+            data={rawGridData}
+            data2={rawDgData}
+            spacing={width / (rawGridData.length > 1 ? rawGridData.length : 2) - 30} // Dynamic spacing
+            thickness={3}
+            color={color1}
+            color2={color2}
             hideRules
             showVerticalLines
             showXAxisIndices
-            xAxisLabelTexts={xLabels}
             xAxisLabelTextStyle={styles.axisText}
             yAxisTextStyle={styles.axisText}
-            maxValue={300}
-            areaChart={isAreaChart && (highlight !== 'DG')} // GRID area visible unless DG is highlighted
-            areaChart2={isAreaChart && (highlight !== 'GRID')} // DG area visible unless GRID is highlighted
-            startFillColor="#003366"
-            startOpacity={0.4}
-            endOpacity={0.1}
-            startFillColor2="#C81D4D"
-            startOpacity2={0.4}
-            endOpacity2={0.1}
-            dataPointsColor="#003366"
-            dataPointsColor2="#C81D4D"
-            onPress={(data, index) => handleDataPointPress(data, index, 'GRID')}
-            onPress2={(data, index) => handleDataPointPress(data, index, 'DG')}
-            width={width - 40}
-            height={height - 200}
+            yAxisSuffix={yAxisSuffix}
+            maxValue={finalChartMaxValue}
+            areaChart={isAreaChart}
+            areaChart2={isAreaChart}
+            startFillColor={color1}
+            startOpacity={highlight === 'DG' ? 0.1 : highlight === 'GRID' ? 0.4 : 0.4}
+            endOpacity={highlight === 'DG' ? 0.05 : highlight === 'GRID' ? 0.1 : 0.1}
+            startFillColor2={color2}
+            startOpacity2={highlight === 'GRID' ? 0.1 : highlight === 'DG' ? 0.4 : 0.4}
+            endOpacity2={highlight === 'GRID' ? 0.05 : highlight === 'DG' ? 0.1 : 0.1}
+            dataPointsColor={color1}
+            dataPointsColor2={color2}
+            onPress={(item, index, x, y) => handleDataPointPress(item, index, 'GRID', x, y)}
+            onPress2={(item, index, x, y) => handleDataPointPress(item, index, 'DG', x, y)}
+            width={width - 70}
+            height={250} // Fixed height for consistency
+            xAxisColor="#333858"
+            yAxisColor="#333858"
+            rulesColor="#333858"
+            initialSpacing={10}
+            endSpacing={10}
           />
           {tooltip.visible && (
             <View
@@ -108,35 +157,55 @@ const MonthlyCostFullChart = () => {
               ]}
             >
               <Text style={styles.tooltipText}>
-
-
-                {tooltip.dataset}: ₹{tooltip.value}
+                {tooltip.dataset}: {tooltip.value.toFixed(2)} {yAxisSuffix}
               </Text>
             </View>
           )}
-          <Text style={styles.unitLabel}>₹</Text>
+
           <View style={styles.legend}>
             <TouchableOpacity style={styles.legendItem} onPress={() => handleLegendPress('GRID')}>
-              <View style={[styles.dot, { backgroundColor: '#003366', opacity: highlight === 'DG' ? 0.3 : 1 }]} />
+              <View style={[styles.dot, { backgroundColor: color1, opacity: highlight === 'DG' ? 0.3 : 1 }]} />
               <Text style={[styles.legendText, { opacity: highlight === 'DG' ? 0.5 : 1 }]}>GRID</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.legendItem} onPress={() => handleLegendPress('DG')}>
-              <View style={[styles.dot, { backgroundColor: '#C81D4D', opacity: highlight === 'GRID' ? 0.3 : 1, marginLeft: 20 }]} />
+              <View style={[styles.dot, { backgroundColor: color2, opacity: highlight === 'GRID' ? 0.3 : 1, marginLeft: 20 }]} />
               <Text style={[styles.legendText, { opacity: highlight === 'GRID' ? 0.5 : 1 }]}>DG</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.toggleContainer}>
-            <View style={styles.switchItem}>
-              <Text style={styles.toggleLabel}>Area Chart</Text>
-              <Switch
-                value={isAreaChart}
-                onValueChange={setIsAreaChart}
-                trackColor={{ false: '#767577', true: '#28B9A9' }}
-                thumbColor={isAreaChart ? '#fff' : '#f4f3f4'}
-              />
-            </View>
+            <Text style={styles.toggleLabel}>Area Chart</Text>
+            <Switch
+              value={isAreaChart}
+              onValueChange={setIsAreaChart}
+              trackColor={{ false: theme.textSecondary, true: theme.accent }}
+              thumbColor={isAreaChart ? theme.textPrimary : theme.textPrimary}
+            />
           </View>
         </View>
+
+        {/* Data Table Section */}
+        {tableData.length > 0 && (
+          <View style={styles.tableContainer}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderText, { flex: 2 }]}>Date</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1 }]}>Grid {yAxisSuffix}</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1 }]}>DG {yAxisSuffix}</Text>
+            </View>
+            {tableData.map((item, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.tableRow,
+                  { backgroundColor: index % 2 === 0 ? theme.tableRowEven : theme.tableRowOdd },
+                ]}
+              >
+                <Text style={[styles.tableCell, { flex: 2 }]}>{item.label}</Text>
+                <Text style={[styles.tableCell, { flex: 1 }]}>{item.gridValue.toFixed(2)}</Text>
+                <Text style={[styles.tableCell, { flex: 1 }]}>{item.dgValue.toFixed(2)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -147,51 +216,45 @@ export default MonthlyCostFullChart;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.background,
   },
   header: {
-    backgroundColor: '#28B9A9',
+    backgroundColor: theme.background,
     padding: 15,
-    paddingTop: 40,
+    paddingTop: 50,
     flexDirection: 'row',
     alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2C3252',
   },
   mainTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: theme.textPrimary,
     marginLeft: 10,
   },
-  chartContainer: {
-    padding: 20,
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 30,
     alignItems: 'center',
   },
   chartBox: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.card,
     borderRadius: 12,
     padding: 16,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    width: width - 40,
+    marginBottom: 20,
+    width: width - 32,
   },
   axisText: {
-    color: '#333',
+    color: theme.textSecondary,
     fontSize: 10,
-  },
-  unitLabel: {
-    textAlign: 'right',
-    fontSize: 12,
-    color: '#777',
-    marginTop: 8,
   },
   legend: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
     justifyContent: 'center',
+    marginTop: 20,
+    gap: 20,
   },
   legendItem: {
     flexDirection: 'row',
@@ -201,47 +264,79 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
+    marginRight: 8,
   },
   legendText: {
-    fontSize: 13,
-    marginLeft: 6,
-    color: '#333',
+    fontSize: 14,
+    color: theme.textPrimary,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.background,
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#003366',
+    color: theme.accent,
   },
   tooltip: {
     position: 'absolute',
-    backgroundColor: '#333',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     borderRadius: 4,
     padding: 6,
     elevation: 5,
   },
   tooltipText: {
-    color: '#fff',
+    color: theme.textPrimary,
     fontSize: 12,
   },
   toggleContainer: {
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  switchItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 5,
+    marginTop: 20,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#333858',
   },
   toggleLabel: {
     fontSize: 14,
-    color: '#333',
+    color: theme.textPrimary,
     marginRight: 10,
+  },
+  tableContainer: {
+    backgroundColor: theme.card,
+    borderRadius: 12,
+    width: width - 32,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: theme.tableHeaderBg,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333858',
+  },
+  tableHeaderText: {
+    color: theme.textSecondary,
+    fontWeight: 'bold',
+    fontSize: 12,
+    textAlign: 'left',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#2C3252',
+  },
+  tableCell: {
+    color: theme.textPrimary,
+    fontSize: 13,
+    textAlign: 'left',
   },
 });

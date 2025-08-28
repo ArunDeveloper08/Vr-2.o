@@ -409,7 +409,7 @@ export default function DownloadBill() {
     setZoomLevel(INITIAL_ZOOM);
     setIsWebViewReady(false);
     setIsModalVisible(true);
-  };
+  };     
 
   const closeWebView = () => {
     setIsModalVisible(false);
@@ -614,7 +614,7 @@ export default function DownloadBill() {
                   color={COLORS.textPrimary}
                 />
               </TouchableOpacity>
-            </View>
+            </View>          
           </View>
 
           <ViewShot

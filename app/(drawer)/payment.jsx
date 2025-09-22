@@ -629,10 +629,10 @@ export default function PaymentScreen() {
   const [isLoadingCharges, setIsLoadingCharges] = useState(true);
   const [mdrCharges, setMdrCharges] = useState([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-
+      
   // Dynamic values from API
   const [handlingCharge, setHandlingCharge] = useState(0);
-  const [cgstRate, setCgstRate] = useState(0);
+  const [cgstRate, setCgstRate] = useState(0); 
   const [sgstRate, setSgstRate] = useState(0);
   const [chargesNote, setChargesNote] = useState("");
   const [chargesNote1, setChargesNote1] = useState("");

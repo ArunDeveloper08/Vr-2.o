@@ -1,20 +1,19 @@
 
 
+// import { Ionicons } from '@expo/vector-icons';
+// import { useRouter } from 'expo-router';
+// import { useCallback, useEffect, useState } from 'react';
 // import {
+//   ActivityIndicator,
+//   FlatList,
+//   StatusBar,
 //   StyleSheet,
 //   Text,
 //   TouchableOpacity,
 //   View,
-//   FlatList,
-//   ActivityIndicator,
-//   // Alert, // Alert not used in this version
-//   StatusBar, // Import StatusBar
 // } from 'react-native';
-// import React, { useEffect, useState } from 'react';
-// import { Ionicons } from '@expo/vector-icons';
+// import { apiUrl } from '../../constant/utils';
 // import { useAuth } from '../../context/AuthContext';
-// import { useRouter } from 'expo-router';
-// // import { apiUrl } from '../../constant/utils'; // Assuming this is for your API base URL
 
 // // --- Theme Colors ---
 // const THEME_COLORS = {
@@ -26,92 +25,109 @@
 //   textSecondary: "#8A9CB0",
 //   iconColor: "#C0D0E0",
 //   neutralDark: "#303A52",
-//   negative: "#F87171", // For error text
-//   positive: "#34D399", // Can be used for "Cr" status
+//   negative: "#F87171",
+//   positive: "#34D399",
+//   shadowDark: "#000000",
+// };
+
+// // --- Helper function to format ISO date strings ---
+// const formatDateTime = (isoString) => {
+//   if (!isoString) return 'N/A';
+//   try {
+//     const date = new Date(isoString);
+//     return date.toLocaleDateString('en-GB', {
+//       day: 'numeric', month: 'short', year: 'numeric',
+//     }) + ', ' + date.toLocaleTimeString('en-US', {
+//       hour: '2-digit', minute: '2-digit', hour12: true,
+//     });
+//   } catch (error) {
+//     console.error("Error formatting date:", error);
+//     return "Invalid Date";
+//   }
 // };
 
 // export default function UserRechargeHistory() {
 //   const { user } = useAuth();
 //   const router = useRouter();
 //   const [rechargeData, setRechargeData] = useState([]);
-//   const [data, setData] = useState([]);
+//   const [meterData, setMeterData] = useState(null);
 //   const [loading, setLoading] = useState(true);
 //   const [error, setError] = useState(null);
 
-//   const fetchRechargeHistory = async () => {
-//     if (!user) { // Moved user check outside useEffect for clarity
+//   // --- Combined data fetching function using Promise.allSettled for robustness ---
+//   const fetchAllData = useCallback(async () => {
+//     if (!user) {
 //       setError("User not logged in. Redirecting...");
-//       setLoading(false); // Ensure loading stops
-//       setTimeout(() => {
-//         router.replace('/login');
-//       }, 2000);
+//       setLoading(false);
+//       setTimeout(() => router.replace('/login'), 2000);
 //       return;
 //     }
-//     try {
-//       setLoading(true);
-//       setError(null);
 
-//       const response = await fetch(
-//         'http://www.pesonline.co.in:8080/WebServicesFinal/Android/RechargeHistory',
-//         {
+//     setLoading(true);
+//     setError(null);
+
+//     try {
+//       const requests = [
+//         fetch(`${apiUrl}/WebServicesFinal/Android/RechargeHistory`, {
 //           method: 'POST',
 //           headers: { 'Content-Type': 'application/json' },
 //           body: JSON.stringify(user),
-//         }
-//       );
-//       const json = await response.json();
-
-//       if (json.ApiStatus === "TRUE" && json.Data) {
-//         setRechargeData(json.Data);
-//       } else {
-//         setError(json.ApiMessage || 'Failed to fetch recharge history.');
-//       }
-//     } catch (error) {
-//       setError('An error occurred. Please try again.');
-//       console.error('Error fetching recharge history:', error);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-//   const fetchData = async () => {
-//     if (!user) { // Moved user check outside useEffect for clarity
-//       setError("User not logged in. Redirecting...");
-//       setLoading(false); // Ensure loading stops
-//       setTimeout(() => {
-//         router.replace('/login');
-//       }, 2000);
-//       return;
-//     }
-//     try {
-//       setLoading(true);
-//       setError(null);
-
-//       const response = await fetch(
-//         'http://www.pesonline.co.in:8080/WebServicesFinal/Android/MeterDataSingle',
-//         {
+//         }),
+//         fetch(`${apiUrl}/WebServicesFinal/Android/MeterDataSingle`, {
 //           method: 'POST',
 //           headers: { 'Content-Type': 'application/json' },
 //           body: JSON.stringify(user),
-//         }
-//       );
-//       const json = await response.json();
+//         }),
+//       ];
 
-//       if (json.ApiStatus === "TRUE" && json.Data) {
-//         setData(json.Data);
+//       const results = await Promise.allSettled(requests);
+//       const [historyResult, meterDataResult] = results;
+//       let fetchError = null;
+
+     
+//       if (historyResult.status === 'fulfilled') {
+//         const historyJson = await historyResult.value.json();
+//         if (historyJson.ApiStatus === "TRUE" && historyJson.Data) {
+//           setRechargeData(historyJson.Data);
+//         } else {
+//           fetchError = historyJson.ApiMessage || 'Failed to fetch recharge history.';
+//         }
 //       } else {
-//         setError(json.ApiMessage || 'Failed to fetch recharge history.');
+//         console.error("RechargeHistory API failed:", historyResult.reason);
+//         fetchError = 'Could not fetch recharge history.';
 //       }
-//     } catch (error) {
-//       setError('An error occurred. Please try again.');
-//       console.error('Error fetching recharge history:', error);
+
+     
+//       if (meterDataResult.status === 'fulfilled') {
+//         const meterDataJson = await meterDataResult.value.json();
+//         if (meterDataJson.ApiStatus === "TRUE" && meterDataJson.Data?.length > 0) {
+//           setMeterData(meterDataJson.Data[0]);
+//         } else if (!fetchError) { // Only set error if history didn't already fail
+//            fetchError = meterDataJson.ApiMessage || 'Failed to fetch summary data.';
+//         }
+//       } else {
+//         console.error("MeterDataSingle API failed:", meterDataResult.reason);
+//         if (!fetchError) {
+//            fetchError = 'Could not fetch summary data.';
+//         }
+//       }
+
+//       if (fetchError) {
+//         setError(fetchError + ' Please check connection and retry.');
+//       }
+
+//     } catch (err) {
+//       setError('An unexpected application error occurred.');
+//       console.error('Unexpected error in fetchAllData:', err);
 //     } finally {
 //       setLoading(false);
 //     }
-//   };
+//   }, [user, router]);
+
 
 //   useEffect(() => {
-//     fetchRechargeHistory();
-//   }, [user]); // Add user to dependency array
+//     fetchAllData();
+//   }, [fetchAllData]);
 
 //   const monthMap = {
 //     '01': 'JAN', '02': 'FEB', '03': 'MAR', '04': 'APR', '05': 'MAY', '06': 'JUN',
@@ -130,11 +146,8 @@
 //     const month = rechargeDateParts[1];
 //     const year = rechargeDateParts[0].slice(-2);
 //     const formattedDate = `${day} ${monthMap[month] || '??'} '${year}`;
-
-    // const drCrStatus = item['Dr/Cr']?.trim().toUpperCase();
-    // const statusColor = drCrStatus === 'CR' ? THEME_COLORS.positive : (drCrStatus === 'DR' ? THEME_COLORS.negative : THEME_COLORS.textSecondary);
-
-
+//     const drCrStatus = item['Dr/Cr']?.trim();
+//     const statusColor = drCrStatus === 'CR' ? THEME_COLORS.positive : (drCrStatus === 'DR' ? THEME_COLORS.negative : THEME_COLORS.textSecondary);
 //     return (
 //       <View style={styles.card}>
 //         <View style={styles.cardHeader}>
@@ -148,34 +161,91 @@
 //         </View>
 //         <View style={styles.cardContent}>
 //           <DetailRow label="Card No" value={item.CardNo} />
-//           <DetailRow label="Card Value" value={item.CardValue} isAmount />
+//           <DetailRow label={`Card Value (${drCrStatus})`} value={item.CardValue} isAmount />
 //           <DetailRow label="Recharge Date" value={item.RechargeDate} />
-//           {/* <DetailRow label="Dr/Cr" value={drCrStatus} color={statusColor} /> */}
-//           {/* <DetailRow label="Cheque No" value={item.ChequeNo} />
-//           <DetailRow label="Cheque Date" value={item.ChequeDate} />
-//           <DetailRow label="Recharge Type" value={item['Payment Type']} />
-//           <DetailRow label="Payment Mode" value={item.PaymentMode} /> */}
+          
 //         </View>
 //       </View>
 //     );
 //   };
 
-//   // Helper component for detail rows
-//   const DetailRow = ({ label, value, color, isAmount = false }) => (
+//   const DetailRow = ({ label, value, isAmount = false }) => (
 //     <View style={styles.detailRow}>
 //       <Text style={styles.detailLabel}>{label}:</Text>
-//       <Text style={[styles.detailValue, color ? { color } : {}, isAmount ? styles.amountValue : {}]}>
-//         {isAmount && value ? `₹${parseFloat(value).toFixed(2)}` : (value || 'N/A')}
+//       <Text style={[styles.detailValue, isAmount ? styles.amountValue : {}]}>
+//         {isAmount && value != null ? `₹${parseFloat(value).toFixed(2)}` : (value || 'N/A')}
 //       </Text>
 //     </View>
 //   );
 
+//   const SummaryItem = ({ label, value, valueColor }) => (
+//     <View style={styles.summaryItem}>
+//       <Text style={styles.summaryLabel}>{label}</Text>
+//       {/* Apply flex: 1 and flexWrap: 'wrap' to the value text */}
+//       <Text style={[styles.summaryValue, {flex: 1, flexWrap: 'wrap', textAlign: 'right'}, valueColor ? { color: valueColor } : {}]}>{value}</Text>
+//     </View>
+//   );
 
-//   const handleRetry = () => {
-//     // setLoading(true); // setLoading is handled in fetchRechargeHistory
-//     // setError(null);
-//     fetchRechargeHistory();
+//   const renderContent = () => {
+//     if (loading) {
+//       return (
+//         <View style={styles.statusContainer}>
+//           <ActivityIndicator size="large" color={THEME_COLORS.accentBlue} />
+//           <Text style={styles.statusText}>Loading history...</Text>
+//         </View>
+//       );
+//     }
+
+//     if (error) {
+//       return (
+//         <View style={styles.statusContainer}>
+//           <Ionicons name="alert-circle-outline" size={60} color={THEME_COLORS.negative} />
+//           <Text style={[styles.statusText, { color: THEME_COLORS.negative, textAlign: 'center' }]}>{error}</Text>
+//           <TouchableOpacity style={styles.retryButton} onPress={fetchAllData}>
+//             <Text style={styles.retryButtonText}>Retry</Text>
+//           </TouchableOpacity>
+//         </View>
+//       );
+//     }
+    
+//     return (
+//       <View style={{flex: 1}}>
+//         {meterData && (
+//           <View style={styles.summaryContainer}>
+//             <SummaryItem
+//               label="Available Balance"
+//               value={`₹${parseFloat(meterData.balance || 0).toFixed(2)}`}
+//               valueColor={THEME_COLORS.positive}
+//             />
+//             <SummaryItem
+//               label="Recent Recharge"
+//               value={formatDateTime(meterData.RechargedOn)}
+//             />
+//              <SummaryItem
+//               label="Last Updated"
+//               value={formatDateTime(meterData.ClosingDateTime)}
+//             />
+//           </View>
+//         )}
+
+//         {rechargeData.length > 0 ? (
+//           <FlatList
+//             data={rechargeData}
+//             renderItem={renderRechargeItem}
+//             keyExtractor={(item, index) => `${item.CardNo}-${item.RechargeDate}-${index}`}
+//             contentContainerStyle={styles.listContainer}
+//             showsVerticalScrollIndicator={false}
+//           />
+//         ) : (
+//           <View style={styles.statusContainer}>
+//               <Ionicons name="archive-outline" size={60} color={THEME_COLORS.textSecondary} />
+//               <Text style={styles.statusText}>No recharge history found.</Text>
+//           </View>
+//         )}
+//       </View>
+//     );
 //   };
+
 
 //   return (
 //     <View style={styles.container}>
@@ -188,36 +258,12 @@
 //         <View style={{ width: 26 }} />
 //       </View>
 
-//       {loading ? (
-//         <View style={styles.statusContainer}>
-//           <ActivityIndicator size="large" color={THEME_COLORS.accentBlue} />
-//           <Text style={styles.statusText}>Loading history...</Text>
-//         </View>
-//       ) : error ? (
-//         <View style={styles.statusContainer}>
-//           <Ionicons name="alert-circle-outline" size={60} color={THEME_COLORS.negative} />
-//           <Text style={[styles.statusText, { color: THEME_COLORS.negative, textAlign: 'center' }]}>{error}</Text>
-//           <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-//             <Text style={styles.retryButtonText}>Retry</Text>
-//           </TouchableOpacity>
-//         </View>
-//       ) : rechargeData.length > 0 ? (
-//         <FlatList
-//           data={rechargeData}
-//           renderItem={renderRechargeItem}
-//           keyExtractor={(item, index) => `${item.CardNo}-${item.RechargeDate}-${index}`} // More unique key
-//           contentContainerStyle={styles.listContainer}
-//           showsVerticalScrollIndicator={false}
-//         />
-//       ) : (
-//         <View style={styles.statusContainer}>
-//             <Ionicons name="archive-outline" size={60} color={THEME_COLORS.textSecondary} />
-//             <Text style={styles.statusText}>No recharge history found.</Text>
-//         </View>
-//       )}
+//       {renderContent()}
+
 //     </View>
 //   );
 // }
+
 
 // const styles = StyleSheet.create({
 //   container: {
@@ -243,20 +289,20 @@
 //     fontWeight: 'bold',
 //   },
 //   listContainer: {
-//     padding: 16,
+//     paddingHorizontal: 16,
+//     paddingBottom: 16, 
 //   },
 //   card: {
 //     backgroundColor: THEME_COLORS.cardBackground,
-//     borderRadius: 15, // More rounded
-//     marginBottom: 16, // More spacing
-//     // Neumorphic shadow
-//     shadowColor: THEME_COLORS.shadowDark, // Assuming you have shadowDark
+//     borderRadius: 15,
+//     marginBottom: 16,
+//     shadowColor: THEME_COLORS.shadowDark,
 //     shadowOffset: { width: 4, height: 4 },
 //     shadowOpacity: 0.7,
 //     shadowRadius: 8,
 //     elevation: 6,
 //   },
-//   cardError: { // For items with bad data
+//   cardError: {
 //     backgroundColor: THEME_COLORS.cardBackground,
 //     borderRadius: 15,
 //     marginBottom: 16,
@@ -274,7 +320,7 @@
 //     alignItems: 'center',
 //     padding: 15,
 //     borderBottomWidth: 1,
-//     borderBottomColor: THEME_COLORS.neutralDark, // Darker border
+//     borderBottomColor: THEME_COLORS.neutralDark,
 //   },
 //   iconContainer: {
 //     flexDirection: 'row',
@@ -296,46 +342,45 @@
 //   },
 //   dateText: {
 //     color: THEME_COLORS.textPrimary,
-//     fontSize: 14, // Slightly smaller
+//     fontSize: 14,
 //     fontWeight: '600',
-//     backgroundColor: THEME_COLORS.neutralDark, // Subtler background
+//     backgroundColor: THEME_COLORS.neutralDark,
 //     paddingHorizontal: 10,
 //     paddingVertical: 5,
-//     borderRadius: 8, // More rounded
+//     borderRadius: 8,
 //   },
 //   cardContent: {
 //     paddingHorizontal: 15,
-//     paddingVertical: 10, // Adjust padding
+//     paddingVertical: 10,
 //   },
 //   detailRow: {
 //     flexDirection: 'row',
 //     justifyContent: 'space-between',
-//     paddingVertical: 8, // More vertical padding
-//     alignItems: 'flex-start', // Align items to start for multi-line values
+//     paddingVertical: 8,
+//     alignItems: 'flex-start',
 //   },
 //   detailLabel: {
 //     color: THEME_COLORS.textSecondary,
 //     fontSize: 14,
 //     fontWeight: '500',
-//     flex: 0.45, // Allocate space for label
+//     flex: 0.45,
 //   },
 //   detailValue: {
 //     color: THEME_COLORS.textPrimary,
 //     fontSize: 14,
 //     fontWeight: '500',
-//     flex: 0.55, // Allocate space for value
-//     textAlign: 'right', // Align value to the right
+//     flex: 0.55,
+//     textAlign: 'right',
 //   },
 //   amountValue: {
-//     fontWeight: 'bold', // Make amounts stand out
-//     color: THEME_COLORS.accentBlue, // Use accent for amounts
+//     fontWeight: 'bold',
+//     color: THEME_COLORS.accentBlue,
 //   },
-//   statusContainer: { // For loading, error, empty states
+//   statusContainer: {
 //     flex: 1,
 //     justifyContent: 'center',
 //     alignItems: 'center',
 //     padding: 20,
-//     backgroundColor: THEME_COLORS.background,
 //   },
 //   statusText: {
 //     marginTop: 15,
@@ -359,22 +404,53 @@
 //     fontSize: 16,
 //     fontWeight: 'bold',
 //   },
+//   summaryContainer: {
+//     backgroundColor: THEME_COLORS.cardBackground,
+//     borderRadius: 15,
+//     padding: 16,
+//     marginHorizontal: 16,
+//     marginTop: 16,
+//     marginBottom: 8,
+//     borderWidth: 1,
+//     borderColor: THEME_COLORS.neutralDark,
+//   },
+//   summaryItem: {
+//     flexDirection: 'row',
+//     justifyContent: 'space-between',
+//     alignItems: 'center', // Keep items vertically centered
+//     paddingVertical: 6,
+//   },
+//   summaryLabel: {
+//     color: THEME_COLORS.textSecondary,
+//     fontSize: 15,
+//     fontWeight: '500',
+//     flex: 1, // Give label some flexibility
+//     marginRight: 10, // Add a little space between label and value
+//   },
+//   summaryValue: {
+//     color: THEME_COLORS.textPrimary,
+//     fontSize: 15,
+//     fontWeight: '600',
+//     // flex: 1, // This is now applied inline in SummaryItem component
+//     // flexWrap: 'wrap', // This is now applied inline in SummaryItem component
+//     textAlign: 'right',
+//   },
 // });
 
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  FlatList,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  FlatList,
-  ActivityIndicator,
-  StatusBar,
 } from 'react-native';
-import React, { useEffect, useState, useCallback } from 'react';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../context/AuthContext';
-import { useRouter } from 'expo-router';
 import { apiUrl } from '../../constant/utils';
+import { useAuth } from '../../context/AuthContext';
 
 // --- Theme Colors ---
 const THEME_COLORS = {
@@ -406,6 +482,21 @@ const formatDateTime = (isoString) => {
     return "Invalid Date";
   }
 };
+
+// --- NEW Helper function to extract a numerical value from a potentially messy string ---
+const extractNumericValue = (input) => {
+  if (typeof input !== 'string' && typeof input !== 'number') {
+    return 0;
+  }
+  const strInput = String(input);
+  // Regex to find numbers, including decimals, optionally preceded by non-numeric chars
+  const match = strInput.match(/[-+]?\d*\.?\d+/);
+  if (match) {
+    return parseFloat(match[0]);
+  }
+  return 0; // Default to 0 if no number is found
+};
+
 
 export default function UserRechargeHistory() {
   const { user } = useAuth();
@@ -542,7 +633,7 @@ export default function UserRechargeHistory() {
   const SummaryItem = ({ label, value, valueColor }) => (
     <View style={styles.summaryItem}>
       <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={[styles.summaryValue, valueColor ? { color: valueColor } : {}]}>{value}</Text>
+      <Text style={[styles.summaryValue, {flex: 1, flexWrap: 'wrap', textAlign: 'right'}, valueColor ? { color: valueColor } : {}]}>{value}</Text>
     </View>
   );
 
@@ -568,13 +659,16 @@ export default function UserRechargeHistory() {
       );
     }
     
+    // Extract numerical balance safely
+    const balance = meterData?.balance ? extractNumericValue(meterData.balance) : 0;
+
     return (
       <View style={{flex: 1}}>
         {meterData && (
           <View style={styles.summaryContainer}>
             <SummaryItem
               label="Available Balance"
-              value={`₹${parseFloat(meterData.balance || 0).toFixed(2)}`}
+              value={`₹${balance.toFixed(2)}`} // Use the extracted and parsed balance here
               valueColor={THEME_COLORS.positive}
             />
             <SummaryItem
@@ -777,17 +871,20 @@ const styles = StyleSheet.create({
   summaryItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'center', // Keep items vertically centered
     paddingVertical: 6,
   },
   summaryLabel: {
     color: THEME_COLORS.textSecondary,
     fontSize: 15,
     fontWeight: '500',
+    flex: 1, // Give label some flexibility
+    marginRight: 10, // Add a little space between label and value
   },
   summaryValue: {
     color: THEME_COLORS.textPrimary,
     fontSize: 15,
     fontWeight: '600',
+    textAlign: 'right',
   },
 });

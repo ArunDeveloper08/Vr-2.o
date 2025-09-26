@@ -2175,7 +2175,13 @@ export default function Home() {
           <TouchableOpacity 
             style={[styles.card, {backgroundColor: currentTheme.cardBackground}]}
             activeOpacity={0.8}
-            onPress={() => setMeterStatusModalVisible(true)}
+            //onPress={() => setMeterStatusModalVisible(true)}
+             onPress={() => {
+      // Add an additional check here for clarity, though the outer `&&` should prevent this if the card isn't visible
+      if (visibleDashboardCards.has("MeterAction")) {
+        setMeterStatusModalVisible(true);
+      }
+    }}
           >
             <View
               style={{
@@ -2386,6 +2392,7 @@ export default function Home() {
               <View>
                 <View style={styles.deductionsHeaderContainer}>
                   <Text style={[styles.cardTitle, {color: currentTheme.textPrimary}]}>Charges Overview (₹)</Text>
+              
                   <View style={[styles.toggleContainer, {backgroundColor: currentTheme.neutralDark}]}>
                     {["Day", "Month"].map((period) => (
                       <TouchableOpacity
@@ -2888,12 +2895,17 @@ const styles = StyleSheet.create({
     height: "80%",
     alignSelf: "center",
   },
+  // deductionsHeaderContainer: {
+  //   flexDirection: "row",
+  //   justifyContent: "space-between",
+  //   alignItems: "center",
+  //   marginBottom: 10,
+  // },
   deductionsHeaderContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
+  flexDirection: "column",
+  alignItems: "flex-start", // heading left aligned, buttons below
+  marginBottom: 10,
+},
   toggleButtonSmall: {
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -2902,7 +2914,7 @@ const styles = StyleSheet.create({
   },
   toggleButtonActiveSmall: {},
   toggleTextSmall: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "500",
   },
   toggleTextActiveSmall: { fontWeight: "600" },
